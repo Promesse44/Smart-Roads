@@ -114,7 +114,7 @@ app.post("/request/:id", async (req, res) => {
     const localLeader = availabeLocalLeader.rows[0].user_id;
 
     const newApproval = await pool.query(
-      "INSERT INTO approval(request_id, user_id, requested_by) VALUES($1,$2,$3)",
+      "INSERT INTO approval(request_id, approvers_id, requested_by) VALUES($1,$2,$3)",
       [requestId, localLeader, userRequestedID]
     );
 
@@ -149,14 +149,14 @@ app.post("/approved/:id", async (req, res) => {
     const governmentUserId = government.rows[0].user_id;
 
     const newApproval = await pool.query(
-      "INSERT INTO approval(request_id, user_id, requested_by) VALUES($1,$2,$3)",
-      [requestId, governmentUserId, requestedUserId]
+      "INSERT INTO approval(request_id, approvers_id, requested_by, to_be_approved_by)VALUES ($1, $2, $3, $4)",
+      [requestId, governmentUserId, requestedUserId, "government"]
     );
 
-    const setApproved = await pool.query(
-      "UPDATE approval SET to_be_approved_by ='government' WHERE request_id =$1",
-      [requestId]
-    );
+    // const setApproved = await pool.query(
+    //   "UPDATE approval SET to_be_approved_by ='government' WHERE request_id =$1",
+    //   [requestId]
+    // );
 
     return res.json(
       `You approved ${requestTitle} request, It is now waiting for Government Approval`
@@ -169,19 +169,32 @@ app.post("/approved/:id", async (req, res) => {
 //Government approve request
 app.post("/governmentapproved/:id", async (req, res) => {
   try {
-    const requestId = req.params.id;
+    const approvalId = req.params.id;
     const getRequest = await pool.query(
-      "SELECT requests.title, approval.approval_id FROM requests WHERE request_id =$1 INNER JOIN ",
-      [requestId]
+      "SELECT requests.title, approval.approvers_id, approval.approval_id, approval.to_be_approved_by FROM requests INNER JOIN approval ON requests.request_id = approval.request_id WHERE approval_id = $1",
+      [approvalId]
     );
+
+    // if (getRequest.rows.length === 0) {
+    //   return res.status(404).json({ msg: "Approval not found" });
+    // }
     const requestTitle = getRequest.rows[0].title;
-
-    const setStatus = await pool.query(
-      "UPDATE requests SET status ='approved' WHERE request_id =$1",
-      [requestId]
-    );
-
-    return res.json(`You approved ${requestTitle} request successfuly`);
+    const whoApproves = getRequest.rows[0].to_be_approved_by;
+    const requestId = getRequest.rows[0].request_id;
+    if (whoApproves === "government") {
+      await pool.query(
+        "UPDATE requests SET status ='Approved' WHERE request_id =$1",
+        [requestId]
+      );
+      return res.json({
+        msg: `You approved ${requestTitle} request successfuly`,
+        requestTitle,
+      });
+    } else {
+      res
+        .status(400)
+        .send(`The ${requestTitle} needs to be approved by local leader first`);
+    }
   } catch (error) {
     res.status(500).json(error);
   }
