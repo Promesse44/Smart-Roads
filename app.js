@@ -44,6 +44,7 @@ app.post("/signup", async (req, res) => {
         "INSERT INTO users(user_name, user_type, phone_number, user_password, email) VALUES($1,$2,$3,$4,$5)",
         [name, role, phone, hash, email]
       );
+
       return res.json({ message: "User created", data: newUser.rows[0] });
     }
   } catch (error) {
