@@ -1,20 +1,23 @@
 import { pool } from "../connection.js";
 
-export const up = async () => {
+export const createRequestsTable = async () => {
   try {
-    const sql = `CREATE TABLE requests IF NOT EXISTS(
-    user_id SERIAL PRIMARY KEY,
-    user_name VARCHAR(100) NOT NULL,
-    email VARCHAR(150) UNIQUE NOT NULL,
-    user_password VARCHAR(255) NOT NULL,
-    user_type VARCHAR(255) NOT NULL,
+    const sql = `CREATE TABLE IF NOT EXISTS requests(
+    request_id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id),
+    title VARCHAR(255) NOT NULL,
+    address VARCHAR(255), 
+    description TEXT NOT NULL,
+    photo VARCHAR(255),
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 `;
     const send = await pool.query(sql);
 
-    console.log("user table created");
+    console.log("requests table created successfully");
     console.log(send.rowCount);
   } catch (error) {
     console.log(error);

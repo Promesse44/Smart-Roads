@@ -41,7 +41,8 @@ app.post("/signup", async (req, res) => {
       res.status(400).json("Role is missing");
     } else {
       const newUser = await pool.query(
-        "INSERT INTO users(user_name, user_type, phone_number, user_password, email) VALUES($1,$2,$3,$4,$5)",
+        `INSERT INTO users(user_name, user_type, phone_number, user_password, email) 
+        VALUES($1,$2,$3,$4,$5)`,
         [name, role, phone, hash, email]
       );
 
@@ -92,14 +93,15 @@ app.post("/request/:id", async (req, res) => {
     const title = req.body.title;
     const description = req.body.description;
     const address = req.body.address;
-    const photos = req.body.photos;
+    const photo = req.body.photo;
     const user_id = req.params.id;
     const latitude = req.body.latitude;
     const longitude = req.body.longitude;
 
     const newRequest = await pool.query(
-      "INSERT INTO requests(title, description, address, photos, user_id, latitude, longitude) VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );",
-      [title, description, address, photos, user_id, latitude, longitude]
+      `INSERT INTO requests(title, description, address, photo, user_id, latitude, longitude) 
+      VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
+      [title, description, address, photo, user_id, latitude, longitude]
     );
     const requested = await pool.query(
       "SELECT request_id, user_id FROM requests WHERE user_id = $1 ORDER BY request_id DESC",
@@ -107,7 +109,7 @@ app.post("/request/:id", async (req, res) => {
     );
 
     const availabeLocalLeader = await pool.query(
-      "SELECT * FROM users WHERE user_type = 'local_leader'"
+      "SELECT * FROM users WHERE user_type = 'Local_leader'"
     );
 
     const requestId = requested.rows[0].request_id;
@@ -115,15 +117,16 @@ app.post("/request/:id", async (req, res) => {
     const localLeader = availabeLocalLeader.rows[0].user_id;
 
     const newApproval = await pool.query(
-      "INSERT INTO approval(request_id, approvers_id, requested_by) VALUES($1,$2,$3)",
-      [requestId, localLeader, userRequestedID]
+      "INSERT INTO approval(request_id, approvers_id) VALUES($1,$2)",
+      [requestId, localLeader]
     );
 
     return res.json({
       msg: `Request for ${title} road recieved successfully`,
     });
   } catch (error) {
-    res.status(500).json(error);
+    res.status(500).json({ msg: "Internal Server Error!" });
+    console.log(error);
   }
 });
 
@@ -133,73 +136,95 @@ app.get("/request", async (req, res) => {
   res.json(allRequests.rows);
 });
 
-//local leader approve request
-app.post("/approved/:id", async (req, res) => {
+//Approve request
+app.post("/approve", async (req, res) => {
   try {
-    const requestId = req.params.id;
-    const getRequest = await pool.query(
-      "SELECT * FROM requests WHERE request_id =$1",
-      [requestId]
-    );
-    const government = await pool.query(
-      "SELECT * FROM users WHERE user_type = 'government'"
-    );
+    const approvalId = req.body.approvalId;
+    const requestId = req.body.requestId;
+    const status = req.body.status;
+    const note = req.body.note;
 
-    const requestTitle = getRequest.rows[0].title;
-    const requestedUserId = getRequest.rows[0].user_id;
-    const governmentUserId = government.rows[0].user_id;
+    console.log("sdsdsd++++", req.body);
 
-    const newApproval = await pool.query(
-      "INSERT INTO approval(request_id, approvers_id, requested_by, to_be_approved_by)VALUES ($1, $2, $3, $4)",
-      [requestId, governmentUserId, requestedUserId, "government"]
+    const checkApproval = await pool.query(
+      `SELECT * FROM approval INNER JOIN users ON users.user_id=approval.approvers_id WHERE approval_id =$1`,
+      [approvalId]
     );
 
-    // const setApproved = await pool.query(
-    //   "UPDATE approval SET to_be_approved_by ='government' WHERE request_id =$1",
-    //   [requestId]
-    // );
+    if (checkApproval.rowCount === 0) {
+      return res.status(404).json({ msg: "Approval not found" });
+    } else {
+      //
+      const approval = checkApproval.rows[0];
 
-    return res.json(
-      `You approved ${requestTitle} request, It is now waiting for Government Approval`
-    );
+      if (approval.status.toUpperCase() === "PENDING") {
+        let userType;
+
+        if (approval.user_type === "Local_leader") {
+          userType = "Government";
+        }
+
+        if (approval.user_type === "Government") {
+          userType = "Architect";
+        }
+
+        // update approval
+        const query = await pool.query(
+          `UPDATE approval SET status =$1, notes=$2 WHERE approval_id=$3`,
+          [status, note, approvalId]
+        );
+
+        if (status.toUpperCase() === "REJECTED") {
+          return res.json({ message: "Approval rejected" });
+        }
+
+        if (userType) {
+          const findUserByType = await pool.query(
+            "SELECT * FROM users WHERE user_type=$1 LIMIT 1",
+            [userType]
+          );
+
+          if (findUserByType.rowCount === 0) {
+            return res
+              .status(404)
+              .json({ message: "approval user type not found" });
+          }
+
+          const newApprovalUserId = findUserByType.rows[0].user_id;
+
+          // create new approval
+          await pool.query(
+            "INSERT INTO approval(request_id, approvers_id, to_be_approved_by) VALUES($1,$2, $3)",
+            [requestId, newApprovalUserId, userType]
+          );
+
+          return res.json({
+            message: `Approval approved and has been assigned to ${userType}`,
+          });
+        }
+
+         return res.json({
+           message: `Approval approved`,
+         });
+      } else {
+        res
+          .status(409)
+          .json({ msg: "You can't approve only Pending approvals" });
+      }
+
+      // console.log(status);
+      // console.log(approvalId);
+    }
   } catch (error) {
-    res.status(500).json(error);
+    res.status(500).json({ msg: "Internal Server Error" });
+    console.log(error);
   }
 });
 
 //Government approve request
-app.post("/governmentapproved/:id", async (req, res) => {
-  try {
-    const approvalId = req.params.id;
-    const getRequest = await pool.query(
-      "SELECT requests.title, approval.approvers_id, approval.approval_id, approval.to_be_approved_by FROM requests INNER JOIN approval ON requests.request_id = approval.request_id WHERE approval_id = $1",
-      [approvalId]
-    );
+// app.post("/governmentapproved/:id", async (req, res) => {
 
-    // if (getRequest.rows.length === 0) {
-    //   return res.status(404).json({ msg: "Approval not found" });
-    // }
-    const requestTitle = getRequest.rows[0].title;
-    const whoApproves = getRequest.rows[0].to_be_approved_by;
-    const requestId = getRequest.rows[0].request_id;
-    if (whoApproves === "government") {
-      await pool.query(
-        "UPDATE requests SET status ='Approved' WHERE request_id =$1",
-        [requestId]
-      );
-      return res.json({
-        msg: `You approved ${requestTitle} request successfuly`,
-        requestTitle,
-      });
-    } else {
-      res
-        .status(400)
-        .send(`The ${requestTitle} needs to be approved by local leader first`);
-    }
-  } catch (error) {
-    res.status(500).json(error);
-  }
-});
+// });
 
 // approve request
 // app.post("/approved/:id", async (req, res) => {
