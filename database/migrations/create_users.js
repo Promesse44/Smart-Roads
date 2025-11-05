@@ -1,25 +1,23 @@
-import { pool } from "../connection";
+import pool from "../pool.js";
 
-export const up = async () => {
-  try {
-    const sql = `CREATE TABLE users IF NOT EXIST(
-    user_id SERIAL PRIMARY KEY,
-    user_name VARCHAR(100) NOT NULL,
-    email VARCHAR(150) UNIQUE NOT NULL,
-    user_password VARCHAR(255) NOT NULL,
-    user_type VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-`;
+export async function up() {
+  const query = `
+    CREATE TABLE IF NOT EXISTS users (
+      user_id SERIAL PRIMARY KEY,
+      user_name VARCHAR(100) NOT NULL,
+      email VARCHAR(150) UNIQUE NOT NULL,
+      user_password VARCHAR(255) NOT NULL,
+      user_type VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `;
 
-    const send = await pool.query(sql);
+  await pool.query(query);
+  console.log("✅ users table created successfully");
+}
 
-    //
-
-    console.log("user table created");
-    console.log(send.rowCount);
-  } catch (error) {
-    console.log(error);
-  }
-};
+export async function down() {
+  await pool.query("DROP TABLE IF EXISTS users;");
+  console.log("🗑️ users table dropped successfully");
+}

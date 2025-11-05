@@ -1,9 +1,12 @@
-import dotenv from "dotenv";
-dotenv.config();
-import * as users from "./create_users";
+import { up as createUsersTable } from "./create_users.js";
 
-export const run = async () => {
-  await users.up();
-};
-
-run();
+(async () => {
+  try {
+    await createUsersTable();
+    console.log("✅ Migration completed.");
+    process.exit(0);
+  } catch (err) {
+    console.error("❌ Migration failed:", err);
+    process.exit(1);
+  }
+})();
