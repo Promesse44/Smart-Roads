@@ -1,4 +1,4 @@
-import pool from "../pool.js";
+import pool from "../connection.js";
 
 export async function up() {
   const query = `
