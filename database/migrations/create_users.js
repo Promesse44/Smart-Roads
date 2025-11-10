@@ -8,7 +8,7 @@ export async function up() {
       email VARCHAR(150) UNIQUE NOT NULL,
       phone_number VARCHAR(255) NOT NULL,
       user_password VARCHAR(255) NOT NULL,
-      user_type VARCHAR(255) NOT NULL CHECK (user_type IN('Government', 'Local_leader', 'Citizen', 'Architect')),
+      user_type VARCHAR(255) NOT NULL DEFAULT 'Citizen' CHECK(user_type IN('Government', 'Local_leader', 'Citizen', 'Architect')),
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );

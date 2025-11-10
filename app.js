@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import pkg from "pg";
 import { Pool } from "pg";
 import dotenv from "dotenv";
@@ -10,6 +11,7 @@ dotenv.config();
 const port = process.env.PORT || 3000;
 const app = express();
 app.use(express.json());
+app.use(cors());
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -37,13 +39,13 @@ app.post("/signup", async (req, res) => {
       res.status(400).json("Phone Number is missing");
     } else if (!password) {
       res.status(400).json("Password is missing");
-    } else if (!role) {
-      res.status(400).json("Role is missing");
+    // } else if (!role) {
+    //   res.status(400).json("Role is missing");
     } else {
       const newUser = await pool.query(
-        `INSERT INTO users(user_name, user_type, phone_number, user_password, email) 
-        VALUES($1,$2,$3,$4,$5)`,
-        [name, role, phone, hash, email]
+        `INSERT INTO users(user_name, phone_number, user_password, email) 
+        VALUES($1,$2,$3,$4)`,
+        [name, phone, hash, email]
       );
 
       return res.json({ message: "User created", data: newUser.rows[0] });
@@ -73,16 +75,18 @@ app.post("/login", async (req, res) => {
 
       if (validPassword) {
         const token = generateToken(user.user_id);
-        res.json({ msg: "Login successful", token, user });
+        res.json({ msg: "Login successful", token, user, success: true });
         console.log(token);
       } else {
-        res.status(401).json("Invalid password");
+        res.status(401).json({ msg: "Invalid password", success: false });
       }
     } else {
-      res.status(401).json(`User with email: ${email} not found!`);
+      res
+        .status(401)
+        .json({ msg: `User with email: ${email} not found!`, success: false });
     }
   } catch (error) {
-    res.status(500).json(error);
+    res.status(500).json({ msg: "Internal Server Error",error, success: false });
     console.log(error);
   }
 });
@@ -203,9 +207,9 @@ app.post("/approve", async (req, res) => {
           });
         }
 
-         return res.json({
-           message: `Approval approved`,
-         });
+        return res.json({
+          message: `Approval approved`,
+        });
       } else {
         res
           .status(409)
