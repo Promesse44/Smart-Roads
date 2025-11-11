@@ -8,7 +8,7 @@ export const createRequestsTable = async () => {
     title VARCHAR(255) NOT NULL,
     address VARCHAR(255), 
     description TEXT NOT NULL,
-    photo VARCHAR(255),
+    photo TEXT,
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
     created_at TIMESTAMP DEFAULT NOW(),

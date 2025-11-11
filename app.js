@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 
 dotenv.config();
 
@@ -20,6 +21,30 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   port: process.env.DB_PORT,
 });
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+// verify token
+function verifyToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token || token === "null" || token === "undefined") {
+    return res.status(403).send("Please login first");
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log(decoded);
+    // req.userId = decoded.userId;
+    req.userId = decoded.userId || decoded.id;
+    console.log(`Token for user Id: ${req.userId} verified.`);
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: "Invalid token" });
+  }
+}
 
 // signup
 app.post("/signup", async (req, res) => {
@@ -39,13 +64,13 @@ app.post("/signup", async (req, res) => {
       res.status(400).json("Phone Number is missing");
     } else if (!password) {
       res.status(400).json("Password is missing");
-    // } else if (!role) {
-    //   res.status(400).json("Role is missing");
+      // } else if (!role) {
+      //   res.status(400).json("Role is missing");
     } else {
       const newUser = await pool.query(
-        `INSERT INTO users(user_name, phone_number, user_password, email) 
-        VALUES($1,$2,$3,$4)`,
-        [name, phone, hash, email]
+        `INSERT INTO users(user_name, user_type, phone_number, user_password, email) 
+        VALUES($1,$2,$3,$4,$5)`,
+        [name, role, phone, hash, email]
       );
 
       return res.json({ message: "User created", data: newUser.rows[0] });
@@ -74,7 +99,11 @@ app.post("/login", async (req, res) => {
       const validPassword = await bcrypt.compare(password, user.user_password);
 
       if (validPassword) {
-        const token = generateToken(user.user_id);
+        const token = jwt.sign(
+          { userId: user.user_id },
+          process.env.JWT_SECRET,
+          { expiresIn: "24h" }
+        );
         res.json({ msg: "Login successful", token, user, success: true });
         console.log(token);
       } else {
@@ -86,26 +115,29 @@ app.post("/login", async (req, res) => {
         .json({ msg: `User with email: ${email} not found!`, success: false });
     }
   } catch (error) {
-    res.status(500).json({ msg: "Internal Server Error",error, success: false });
+    res
+      .status(500)
+      .json({ msg: "Internal Server Error", error, success: false });
     console.log(error);
   }
 });
 
 // adding request
-app.post("/request/:id", async (req, res) => {
+app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
   try {
     const title = req.body.title;
     const description = req.body.description;
     const address = req.body.address;
-    const photo = req.body.photo;
-    const user_id = req.params.id;
+    const photoBuffer = req.file ? req.file.buffer : null;
+    const photoString = photoBuffer ? photoBuffer.toString("base64") : null;
+    const user_id = req.userId;
     const latitude = req.body.latitude;
     const longitude = req.body.longitude;
 
     const newRequest = await pool.query(
       `INSERT INTO requests(title, description, address, photo, user_id, latitude, longitude) 
       VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
-      [title, description, address, photo, user_id, latitude, longitude]
+      [title, description, address, photoString, user_id, latitude, longitude]
     );
     const requested = await pool.query(
       "SELECT request_id, user_id FROM requests WHERE user_id = $1 ORDER BY request_id DESC",
@@ -135,23 +167,49 @@ app.post("/request/:id", async (req, res) => {
 });
 
 // Get request
-app.get("/request", async (req, res) => {
-  const allRequests = await pool.query("SELECT * FROM requests");
-  res.json(allRequests.rows);
+app.get("/request", verifyToken, async (req, res) => {
+  try {
+    const allRequests = await pool.query(`SELECT requests.title, 
+        requests.created_at, 
+        requests.description, 
+        requests.created_at,
+        users.user_name, 
+        approval.status, 
+        requests.photo
+    FROM requests
+    INNER JOIN users ON users.user_id = requests.user_id
+    INNER JOIN approval ON approval.request_id = requests.request_id
+    `);
+    res.json(allRequests.rows);
+  } catch (error) {
+    console.log(error);
+  }
 });
 
+// get all approvals
+app.get("/approvals", verifyToken, async(req, res)=>{
+  const allApproval =
+    await pool.query(`SELECT * FROM approval 
+      INNER JOIN users ON users.user_id=approval.approvers_id 
+      INNER JOIN requests ON requests.request_id = approval.request_id;`);
+      
+ return res.json(allApproval.rows);
+}
+);
+
 //Approve request
-app.post("/approve", async (req, res) => {
+app.post("/approve", verifyToken, async (req, res) => {
   try {
     const approvalId = req.body.approvalId;
     const requestId = req.body.requestId;
     const status = req.body.status;
     const note = req.body.note;
 
-    console.log("sdsdsd++++", req.body);
+    // console.log("sdsdsd++++", req.body);
 
     const checkApproval = await pool.query(
-      `SELECT * FROM approval INNER JOIN users ON users.user_id=approval.approvers_id WHERE approval_id =$1`,
+      `SELECT * FROM approval INNER JOIN users ON users.user_id=approval.approvers_id 
+      WHERE approval_id =$1`,
       [approvalId]
     );
 
