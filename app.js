@@ -170,15 +170,19 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
 app.get("/request", verifyToken, async (req, res) => {
   try {
     const allRequests = await pool.query(`SELECT requests.title, 
-        requests.created_at, 
-        requests.description, 
-        requests.created_at,
-        users.user_name, 
-        approval.status, 
-        requests.photo
-    FROM requests
-    INNER JOIN users ON users.user_id = requests.user_id
-    INNER JOIN approval ON approval.request_id = requests.request_id
+          requests.created_at, 
+          requests.description, 
+          users.user_name, 
+          requests.photo,
+          approval.status
+        FROM requests
+        INNER JOIN users ON users.user_id = requests.user_id
+        LEFT JOIN LATERAL (
+          SELECT status FROM approval WHERE request_id = requests.request_id
+          ORDER BY approval_id DESC
+          LIMIT 1
+        ) approval ON TRUE
+        ORDER BY requests.created_at DESC;
     `);
     res.json(allRequests.rows);
   } catch (error) {
@@ -187,15 +191,17 @@ app.get("/request", verifyToken, async (req, res) => {
 });
 
 // get all approvals
-app.get("/approvals", verifyToken, async(req, res)=>{
-  const allApproval =
-    await pool.query(`SELECT * FROM approval 
+app.get("/approvals", verifyToken, async (req, res) => {
+  // const user_id = req.userId
+  const allApproval = await pool.query(
+    `SELECT * FROM approval 
       INNER JOIN users ON users.user_id=approval.approvers_id 
-      INNER JOIN requests ON requests.request_id = approval.request_id;`);
-      
- return res.json(allApproval.rows);
-}
-);
+      INNER JOIN requests ON requests.request_id = approval.request_id WHERE approvers_id = $1 ORDER BY approval_id DESC;`,
+    [req.userId]
+  );
+
+  return res.json(allApproval.rows);
+});
 
 //Approve request
 app.post("/approve", verifyToken, async (req, res) => {
@@ -208,7 +214,7 @@ app.post("/approve", verifyToken, async (req, res) => {
     // console.log("sdsdsd++++", req.body);
 
     const checkApproval = await pool.query(
-      `SELECT * FROM approval INNER JOIN users ON users.user_id=approval.approvers_id 
+      `SELECT approval.*, users.user_type FROM approval INNER JOIN users ON users.user_id=approval.approvers_id 
       WHERE approval_id =$1`,
       [approvalId]
     );
@@ -220,6 +226,11 @@ app.post("/approve", verifyToken, async (req, res) => {
       const approval = checkApproval.rows[0];
 
       if (approval.status.toUpperCase() === "PENDING") {
+        if (approval.approvers_id != req.userId) {
+          return res
+            .status(403)
+            .json(`You are not authorized to approve this request.`);
+        }
         let userType;
 
         if (approval.user_type === "Local_leader") {
@@ -269,9 +280,7 @@ app.post("/approve", verifyToken, async (req, res) => {
           message: `Approval approved`,
         });
       } else {
-        res
-          .status(409)
-          .json({ msg: "You can't approve only Pending approvals" });
+        res.status(409).json({ msg: "You can approve only Pending approvals" });
       }
 
       // console.log(status);
