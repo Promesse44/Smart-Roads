@@ -172,6 +172,7 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
 app.get("/request", verifyToken, async (req, res) => {
   try {
     const allRequests = await pool.query(`SELECT requests.title, 
+          requests.request_id,
           requests.created_at, 
           requests.description, 
           users.user_name, 
@@ -186,6 +187,30 @@ app.get("/request", verifyToken, async (req, res) => {
         ) approval ON TRUE
         ORDER BY requests.created_at DESC;
     `);
+    res.json(allRequests.rows);
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+// Get request
+app.get("/request/:id", verifyToken, async (req, res) => {
+  try {
+    const requestId = req.params.id;
+    const allRequests = await pool.query(
+      `SELECT *
+        FROM requests
+        INNER JOIN users ON users.user_id = requests.user_id
+        LEFT JOIN LATERAL (
+          SELECT status FROM approval WHERE request_id = requests.request_id
+          ORDER BY approval_id DESC
+          LIMIT 1
+        ) approval ON TRUE
+         WHERE request_id = $1
+        ORDER BY requests.created_at DESC;
+    `,
+      [requestId]
+    );
     res.json(allRequests.rows);
   } catch (error) {
     console.log(error);
