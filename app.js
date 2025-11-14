@@ -6,6 +6,9 @@ import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
+import { pool } from './database/connection.js';
+import path, {dirname} from 'path';
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
@@ -13,19 +16,22 @@ const port = process.env.PORT || 3000;
 const app = express();
 app.use(express.json());
 app.use(cors());
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT,
-});
+app.use(express.static(path.join(__dirname, 'public')));
 
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+
+const storage = multer.diskStorage({destination: (req, file, cb)=>{
+cb(null, 'public/');
+}, filename: (req, file, cb)=> {
+const ext = path.extname(file.originalname);
+
+const uniqueName = `${Date.now()}${ext}`;
+cb(null, uniqueName);
+}});
+
+const upload = multer({ storage });
 
 // verify token
 function verifyToken(req, res, next) {
@@ -127,41 +133,48 @@ app.post("/login", async (req, res) => {
 // adding request
 app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
   try {
+ 
+    const filename = req.file.filename;
+    const host = req.host;
+    const protocal = req.protocol;
+
+
+  
     const title = req.body.title;
     const description = req.body.description;
     const address = req.body.address;
-    const photoBuffer = req.file ? req.file.buffer : null;
-    const photoString = photoBuffer ? photoBuffer.toString("base64") : null;
+    const photoString = `${protocal}://${host}/${filename}`;
+
     const user_id = req.userId;
     const latitude = req.body.latitude;
     const longitude = req.body.longitude;
 
-    const newRequest = await pool.query(
-      `INSERT INTO requests(title, description, address, photo, user_id, latitude, longitude) 
-      VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
-      [title, description, address, photoString, user_id, latitude, longitude]
-    );
-    const requested = await pool.query(
-      "SELECT request_id, user_id FROM requests WHERE user_id = $1 ORDER BY request_id DESC",
-      [user_id]
-    );
+    // const newRequest = await pool.query(
+    //   `INSERT INTO requests(title, description, address, photo, user_id, latitude, longitude) 
+    //   VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
+    //   [title, description, address, photoString, user_id, latitude, longitude]
+    // );
+    // const requested = await pool.query(
+    //   "SELECT request_id, user_id FROM requests WHERE user_id = $1 ORDER BY request_id DESC",
+    //   [user_id]
+    // );
 
-    const availabeLocalLeader = await pool.query(
-      "SELECT * FROM users WHERE user_type = 'Local_leader'"
-    );
+    // const availabeLocalLeader = await pool.query(
+    //   "SELECT * FROM users WHERE user_type = 'Local_leader'"
+    // );
 
-    const requestId = requested.rows[0].request_id;
-    const userRequestedID = requested.rows[0].user_id;
-    const localLeader = availabeLocalLeader.rows[0].user_id;
+    // const requestId = requested.rows[0].request_id;
+    // const userRequestedID = requested.rows[0].user_id;
+    // const localLeader = availabeLocalLeader.rows[0].user_id;
 
-    const newApproval = await pool.query(
-      "INSERT INTO approval(request_id, approvers_id) VALUES($1,$2)",
-      [requestId, localLeader]
-    );
+    // const newApproval = await pool.query(
+    //   "INSERT INTO approval(request_id, approvers_id) VALUES($1,$2)",
+    //   [requestId, localLeader]
+    // );
 
-    return res.json({
-      msg: `Request for ${title} road recieved successfully`,
-    });
+    // return res.json({
+    //   msg: `Request for ${title} road recieved successfully`,
+    // });
   } catch (error) {
     res.status(500).json({ msg: "Internal Server Error!" });
     console.log(error);
@@ -193,7 +206,7 @@ app.get("/request", verifyToken, async (req, res) => {
   }
 });
 
-// Get request
+// Get single request
 app.get("/request/:id", verifyToken, async (req, res) => {
   try {
     const requestId = req.params.id;
@@ -211,7 +224,7 @@ app.get("/request/:id", verifyToken, async (req, res) => {
     `,
       [requestId]
     );
-    res.json(allRequests.rows);
+    res.json(allRequests.rows[0]);
   } catch (error) {
     console.log(error);
   }
