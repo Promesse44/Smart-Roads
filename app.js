@@ -6,8 +6,8 @@ import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import { pool } from './database/connection.js';
-import path, {dirname} from 'path';
+import { pool } from "./database/connection.js";
+import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 
 dotenv.config();
@@ -19,17 +19,19 @@ app.use(cors());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "public/");
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
 
-const storage = multer.diskStorage({destination: (req, file, cb)=>{
-cb(null, 'public/');
-}, filename: (req, file, cb)=> {
-const ext = path.extname(file.originalname);
-
-const uniqueName = `${Date.now()}${ext}`;
-cb(null, uniqueName);
-}});
+    const uniqueName = `${Date.now()}${ext}`;
+    cb(null, uniqueName);
+  },
+});
 
 const upload = multer({ storage });
 
@@ -133,13 +135,10 @@ app.post("/login", async (req, res) => {
 // adding request
 app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
   try {
- 
     const filename = req.file.filename;
     const host = req.host;
     const protocal = req.protocol;
 
-
-  
     const title = req.body.title;
     const description = req.body.description;
     const address = req.body.address;
@@ -210,21 +209,39 @@ app.get("/request", verifyToken, async (req, res) => {
 app.get("/request/:id", verifyToken, async (req, res) => {
   try {
     const requestId = req.params.id;
-    const allRequests = await pool.query(
-      `SELECT *
-        FROM requests
-        INNER JOIN users ON users.user_id = requests.user_id
-        LEFT JOIN LATERAL (
-          SELECT status, approvers_id FROM approval WHERE request_id = requests.request_id
-          ORDER BY approval_id DESC
-          LIMIT 1
-        ) approval ON TRUE
-         WHERE request_id = $1
-        ORDER BY requests.created_at DESC;
-    `,
+    const singleRequest = await pool.query(
+      `SELECT 
+        requests.*,
+        users.user_name AS requester_name,
+        users.email AS requester_email,
+        users.phone_number AS requester_phone
+      FROM requests
+      INNER JOIN users 
+        ON users.user_id = requests.user_id
+      WHERE requests.request_id = $1`,
       [requestId]
     );
-    res.json(allRequests.rows[0]);
+
+    const approval = await pool.query(
+      `SELECT 
+        a.status,
+        a.notes,
+        u.user_name AS approver_name,
+        u.email AS approver_email,
+        u.user_type AS approver_type,
+        u.phone_number AS approver_phone
+      FROM approval a
+      INNER JOIN users u ON u.user_id = a.approvers_id
+      WHERE a.request_id = $1
+      ORDER BY a.approval_id DESC
+      LIMIT 2`,
+      [requestId]
+    );
+    const requestInfo = singleRequest.rows[0];
+    const latestApproval = approval.rows[0];
+    const previousApproval = approval.rows[1];
+
+    res.json({requestInfo, latestApproval, previousApproval});
   } catch (error) {
     console.log(error);
   }
