@@ -149,32 +149,32 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
     const latitude = req.body.latitude;
     const longitude = req.body.longitude;
 
-    // const newRequest = await pool.query(
-    //   `INSERT INTO requests(title, description, address, photo, user_id, latitude, longitude) 
-    //   VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
-    //   [title, description, address, photoString, user_id, latitude, longitude]
-    // );
-    // const requested = await pool.query(
-    //   "SELECT request_id, user_id FROM requests WHERE user_id = $1 ORDER BY request_id DESC",
-    //   [user_id]
-    // );
+    const newRequest = await pool.query(
+      `INSERT INTO requests(title, description, address, photo, user_id, latitude, longitude) 
+      VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
+      [title, description, address, photoString, user_id, latitude, longitude]
+    );
+    const requested = await pool.query(
+      "SELECT request_id, user_id FROM requests WHERE user_id = $1 ORDER BY request_id DESC",
+      [user_id]
+    );
 
-    // const availabeLocalLeader = await pool.query(
-    //   "SELECT * FROM users WHERE user_type = 'Local_leader'"
-    // );
+    const availabeLocalLeader = await pool.query(
+      "SELECT * FROM users WHERE user_type = 'Local_leader'"
+    );
 
-    // const requestId = requested.rows[0].request_id;
-    // const userRequestedID = requested.rows[0].user_id;
-    // const localLeader = availabeLocalLeader.rows[0].user_id;
+    const requestId = requested.rows[0].request_id;
+    const userRequestedID = requested.rows[0].user_id;
+    const localLeader = availabeLocalLeader.rows[0].user_id;
 
-    // const newApproval = await pool.query(
-    //   "INSERT INTO approval(request_id, approvers_id) VALUES($1,$2)",
-    //   [requestId, localLeader]
-    // );
+    const newApproval = await pool.query(
+      "INSERT INTO approval(request_id, approvers_id) VALUES($1,$2)",
+      [requestId, localLeader]
+    );
 
-    // return res.json({
-    //   msg: `Request for ${title} road recieved successfully`,
-    // });
+    return res.json({
+      msg: `Request for ${title} road recieved successfully`,
+    });
   } catch (error) {
     res.status(500).json({ msg: "Internal Server Error!" });
     console.log(error);
@@ -215,7 +215,7 @@ app.get("/request/:id", verifyToken, async (req, res) => {
         FROM requests
         INNER JOIN users ON users.user_id = requests.user_id
         LEFT JOIN LATERAL (
-          SELECT status FROM approval WHERE request_id = requests.request_id
+          SELECT status, approvers_id FROM approval WHERE request_id = requests.request_id
           ORDER BY approval_id DESC
           LIMIT 1
         ) approval ON TRUE
