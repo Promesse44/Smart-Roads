@@ -183,22 +183,50 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
 // Get request
 app.get("/request", verifyToken, async (req, res) => {
   try {
-    const allRequests = await pool.query(`SELECT requests.title, 
-          requests.request_id,
-          requests.created_at, 
-          requests.description, 
-          users.user_name, 
-          requests.photo,
-          approval.status
-        FROM requests
-        INNER JOIN users ON users.user_id = requests.user_id
+    const allRequests = await pool.query(`SELECT 
+        r.request_id,
+        r.title,
+        r.description,
+        r.photo,
+        r.created_at,
+        u.user_name,
+        approvals.latest_approval,
+        approvals.previous_approval
+      FROM requests r
+      INNER JOIN users u ON u.user_id = r.user_id
+      LEFT JOIN LATERAL (
+        SELECT 
+          jsonb_build_object(
+            'status', a1.status,
+            'notes', a1.notes,
+            'approver_type', u1.user_type,
+            'approver_name', u1.user_name
+          ) AS latest_approval,
+          jsonb_build_object(
+            'status', a2.status,
+            'notes', a2.notes,
+            'approver_type', u2.user_type,
+            'approver_name', u2.user_name
+          ) AS previous_approval
+        FROM approval a1
         LEFT JOIN LATERAL (
-          SELECT status FROM approval WHERE request_id = requests.request_id
-          ORDER BY approval_id DESC
-          LIMIT 1
-        ) approval ON TRUE
-        ORDER BY requests.created_at DESC;
+        SELECT *
+        FROM approval a2
+        WHERE a2.request_id = r.request_id
+         AND a2.approval_id < a1.approval_id
+        ORDER BY a2.approval_id DESC
+        LIMIT 1
+        ) a2 ON TRUE
+        LEFT JOIN users u1 ON u1.user_id = a1.approvers_id
+        LEFT JOIN users u2 ON u2.user_id = a2.approvers_id
+        WHERE a1.request_id = r.request_id
+        ORDER BY a1.approval_id DESC
+        LIMIT 1
+      ) approvals ON TRUE
+      ORDER BY r.created_at DESC;
     `);
+    const request = allRequests.rows[0];
+    const previousRequest = allRequests.rows[1];
     res.json(allRequests.rows);
   } catch (error) {
     console.log(error);
@@ -241,7 +269,7 @@ app.get("/request/:id", verifyToken, async (req, res) => {
     const latestApproval = approval.rows[0];
     const previousApproval = approval.rows[1];
 
-    res.json({requestInfo, latestApproval, previousApproval});
+    res.json({ requestInfo, latestApproval, previousApproval });
   } catch (error) {
     console.log(error);
   }
