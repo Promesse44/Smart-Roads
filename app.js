@@ -135,6 +135,9 @@ app.post("/login", async (req, res) => {
 // adding request
 app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ msg: "Photo is required" });
+    }
     const filename = req.file.filename;
     const host = req.host;
     const protocal = req.protocol;
@@ -153,6 +156,7 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
       VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
       [title, description, address, photoString, user_id, latitude, longitude]
     );
+    
     const requested = await pool.query(
       "SELECT request_id, user_id FROM requests WHERE user_id = $1 ORDER BY request_id DESC",
       [user_id]
