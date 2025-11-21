@@ -156,7 +156,7 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
       VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
       [title, description, address, photoString, user_id, latitude, longitude]
     );
-    
+
     const requested = await pool.query(
       "SELECT request_id, user_id FROM requests WHERE user_id = $1 ORDER BY request_id DESC",
       [user_id]
@@ -428,3 +428,19 @@ app.post("/approve", verifyToken, async (req, res) => {
 // });
 
 app.listen(port, () => console.log(`Server listenig to port ${port}`));
+
+// Verify DB connectivity at startup and fail fast with clear logging
+(async () => {
+  try {
+    await pool.query("SELECT 1");
+    console.log("Database connection OK");
+  } catch (err) {
+    // Log a concise error object (avoid logging credentials)
+    console.error("Database connection failed:", {
+      message: err.message,
+      code: err.code,
+    });
+    // Exit so the hosting platform (Render) shows the failure and logs
+    process.exit(1);
+  }
+})();
