@@ -139,13 +139,20 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
       return res.status(400).json({ msg: "Photo is required" });
     }
     const filename = req.file.filename;
-    const host = req.host;
-    const protocal = req.protocol;
+
+    // Build a canonical public URL for the uploaded file.
+    // Prefer an explicit SERVER_URL env var (must include scheme, e.g. https://example.com).
+    // Fallback to request protocol + host. Trim surrounding quotes if any.
+    const rawServerUrl = process.env.SERVER_URL;
+    const sanitize = (v) =>
+      typeof v === "string" ? v.trim().replace(/^['\"]|['\"]$/g, "") : v;
+    const SERVER_URL =
+      sanitize(rawServerUrl) || `${req.protocol}://${req.get("host")}`;
 
     const title = req.body.title;
     const description = req.body.description;
     const address = req.body.address;
-    const photoString = `${protocal}://${host}/${filename}`;
+    const photoString = `${SERVER_URL}/${filename}`;
 
     const user_id = req.userId;
     const latitude = req.body.latitude;
