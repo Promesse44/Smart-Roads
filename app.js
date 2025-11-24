@@ -21,6 +21,15 @@ const __dirname = dirname(__filename);
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// Helper: sanitize env vars and build server base URL
+const sanitize = (v) =>
+  typeof v === "string" ? v.trim().replace(/^['\"]|['\"]$/g, "") : v;
+const getServerUrl = (req) => {
+  const raw = process.env.SERVER_URL;
+  const fromEnv = sanitize(raw);
+  return fromEnv || `${req.protocol}://${req.get("host")}`;
+};
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "public/");
@@ -236,9 +245,15 @@ app.get("/request", verifyToken, async (req, res) => {
       ) approvals ON TRUE
       ORDER BY r.created_at DESC;
     `);
-    const request = allRequests.rows[0];
-    const previousRequest = allRequests.rows[1];
-    res.json(allRequests.rows);
+    const serverBase = getServerUrl(req);
+    const rows = allRequests.rows.map((r) => {
+      if (r.photo && /localhost|127\.0\.0\.1/.test(r.photo)) {
+        const filename = path.basename(r.photo);
+        r.photo = `${serverBase}/${filename}`;
+      }
+      return r;
+    });
+    res.json(rows);
   } catch (error) {
     console.log(error);
   }
@@ -280,6 +295,16 @@ app.get("/request/:id", verifyToken, async (req, res) => {
     const latestApproval = approval.rows[0];
     const previousApproval = approval.rows[1];
 
+    // Rewrite photo URL if it points to localhost (was saved during local dev)
+    if (
+      requestInfo &&
+      requestInfo.photo &&
+      /localhost|127\.0\.0\.1/.test(requestInfo.photo)
+    ) {
+      const filename = path.basename(requestInfo.photo);
+      requestInfo.photo = `${getServerUrl(req)}/${filename}`;
+    }
+
     res.json({ requestInfo, latestApproval, previousApproval });
   } catch (error) {
     console.log(error);
@@ -295,8 +320,16 @@ app.get("/approvals", verifyToken, async (req, res) => {
       INNER JOIN requests ON requests.request_id = approval.request_id WHERE approvers_id = $1 ORDER BY approval_id DESC;`,
     [req.userId]
   );
+  const serverBase = getServerUrl(req);
+  const rows = allApproval.rows.map((r) => {
+    if (r.photo && /localhost|127\.0\.0\.1/.test(r.photo)) {
+      const filename = path.basename(r.photo);
+      r.photo = `${serverBase}/${filename}`;
+    }
+    return r;
+  });
 
-  return res.json(allApproval.rows);
+  return res.json(rows);
 });
 
 //Approve request
