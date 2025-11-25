@@ -20,6 +20,13 @@ npm run db:migrate
 - Start the app in development mode:
 
 ```powershell
+# Backend: from the root folder
+npm run db:migrate
+npm run dev
+
+# Frontend (in separate terminal):
+cd ../Smart-Roads-Frontend/smart_roads_frontend
+npm install
 npm run dev
 ```
 
@@ -87,6 +94,28 @@ SET photo = replace(photo, 'http://localhost:8000', 'https://smart-roads-ozka.on
 WHERE photo LIKE 'http://localhost:8000%';
 ```
 
+## Features
+
+- User signup and login (JWT authentication)
+- Add new road requests with photos, address, and description
+- View all requests and single request details
+- Approval flow with multiple approvers and status history
+- Admin/approver-specific endpoints for approvals
+
+## System Requirements
+
+- Node.js 18+ (LTS recommended)
+- npm 8+ (or yarn)
+- PostgreSQL 12+ (server or managed)
+- Port 10000 (backend default) and 5173 (frontend dev default)
+
+## Tech used
+
+- Backend: Node.js, Express, Multer, JWT, bcrypt, pg
+- Frontend: React (Vite), React Router, Iconify, FontAwesome
+- Database: PostgreSQL
+- Hosting: Render (backend), Netlify (frontend recommended)
+
 ## Deploy (Render)
 
 1. Push repo to your Git provider (Render will clone it).
@@ -95,3 +124,20 @@ WHERE photo LIKE 'http://localhost:8000%';
 4. Build & Deploy: Render will run `npm install` and `node app.js` by default.
 
 If the service fails at startup, check the logs for database connection errors (common causes: incorrect `DATABASE_URL`, quoted env values, or missing `DB_PORT`).
+
+## Screenshots
+
+Add screenshots to `docs/screenshots/` then insert them here like:
+
+```markdown
+![Dashboard screenshot](docs/screenshots/dashboard.png)
+```
+
+## Deployed app
+
+- Backend (Render): `https://smart-roads-ozka.onrender.com` (example)
+- Frontend (Netlify): `https://<your-site>.netlify.app` (add your site URL here once deployed)
+
+## Contributing
+
+If you'd like to contribute, please open an issue or a PR and include a short description of the change.
