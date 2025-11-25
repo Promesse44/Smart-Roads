@@ -65,7 +65,7 @@ function verifyToken(req, res, next) {
   }
 }
 
-// signup
+// signup endpoint - create a new user
 app.post("/signup", async (req, res) => {
   try {
     const name = req.body.name;
@@ -149,7 +149,7 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
     }
     const filename = req.file.filename;
 
-    // Build a canonical public URL for the uploaded file.
+    // Build a canonical public URL for the uploaded file. Prefer SERVER_URL in production.
     // Prefer an explicit SERVER_URL env var (must include scheme, e.g. https://example.com).
     // Fallback to request protocol + host. Trim surrounding quotes if any.
     const rawServerUrl = process.env.SERVER_URL;
@@ -167,6 +167,7 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
     const latitude = req.body.latitude;
     const longitude = req.body.longitude;
 
+    // Insert new request and create approval entry for the first approver
     const newRequest = await pool.query(
       `INSERT INTO requests(title, description, address, photo, user_id, latitude, longitude) 
       VALUES($1,$2 ,$3 ,$4,$5,$6,$7 );`,
@@ -186,6 +187,7 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
     const userRequestedID = requested.rows[0].user_id;
     const localLeader = availabeLocalLeader.rows[0].user_id;
 
+    // create a new approval entry pointing to the local leader for this request
     const newApproval = await pool.query(
       "INSERT INTO approval(request_id, approvers_id) VALUES($1,$2)",
       [requestId, localLeader]
@@ -200,7 +202,7 @@ app.post("/request", verifyToken, upload.single("photo"), async (req, res) => {
   }
 });
 
-// Get request
+// Get request list - return requests and attach approval state
 app.get("/request", verifyToken, async (req, res) => {
   try {
     const allRequests = await pool.query(`SELECT 
@@ -245,6 +247,7 @@ app.get("/request", verifyToken, async (req, res) => {
       ) approvals ON TRUE
       ORDER BY r.created_at DESC;
     `);
+    // Construct base URL for images (env or request host)
     const serverBase = getServerUrl(req);
     const rows = allRequests.rows.map((r) => {
       if (r.photo && /localhost|127\.0\.0\.1/.test(r.photo)) {
