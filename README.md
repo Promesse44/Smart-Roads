@@ -125,13 +125,6 @@ WHERE photo LIKE 'http://localhost:8000%';
 
 If the service fails at startup, check the logs for database connection errors (common causes: incorrect `DATABASE_URL`, quoted env values, or missing `DB_PORT`).
 
-## Screenshots
-
-Add screenshots to `docs/screenshots/` then insert them here like:
-
-```markdown
-![Dashboard screenshot](docs/screenshots/dashboard.png)
-```
 
 ## Deployed app
 
