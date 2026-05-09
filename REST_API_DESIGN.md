@@ -10,7 +10,7 @@ I kept things plain on purpose: resource-based URLs, normal HTTP verbs, and obvi
 
 ## Business and Domain Analysis
 
-Imara works with small merchants, field agents, and lenders. The API should let those people do their jobs without extra friction — practical first, fancy later.
+Imara works with small merchants, field agents, and lenders. The API should let those people do their jobs without extra friction, practical first, fancy later.
 
 Main actors (short):
 
@@ -30,7 +30,7 @@ Just remember, all this involves sensitive financial info:
 - Duplicate pending requests: block obvious duplicates.
 - Status changes over time: requests move draft -> submitted -> reviewed -> decided.
 
-Class reflection: in our group we agreed to use resource-style URLs (so `/drivers` not `/getDrivers`). Nesting like `/users/{userId}/rides` felt weird at first but it makes relationships clear. Also we cleared up PATCH vs PUT — PATCH for small edits (phone number), PUT when you replace the whole object.
+Class reflection: in our group we agreed to use resource-style URLs (so `/drivers` not `/getDrivers`). Nesting like `/users/{userId}/rides` felt weird at first but it makes relationships clear. Also we cleared up PATCH vs PUT, PATCH for small edits (phone number), PUT when you replace the whole object.
 
 ## Resource Specifications
 
